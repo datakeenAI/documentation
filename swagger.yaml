@@ -4,7 +4,6 @@ info:
   description: This is the swagger of the Datakeen's Document Extraction API.
   version: 1.18.1
 servers:
-  - description: Datakeen API Server
   - url: https://api.datakeen.co/api/v1
 tags: []
 paths:
