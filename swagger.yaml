@@ -1,718 +1,3406 @@
----
-swagger: "2.0"
+openapi: 3.0.1
 info:
-  description: "This is a sample server Petstore server.  You can find out more about\
-    \ Swagger at [http://swagger.io](http://swagger.io) or on [irc.freenode.net, #swagger](http://swagger.io/irc/).\
-    \  For this sample, you can use the api key `special-key` to test the authorization\
-    \ filters."
-  version: "1.0.5"
-  title: "Swagger Petstore"
-  termsOfService: "http://swagger.io/terms/"
-  contact:
-    email: "apiteam@swagger.io"
-  license:
-    name: "Apache 2.0"
-    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
-host: "petstore.swagger.io"
-basePath: "/v2"
-tags:
-- name: "pet"
-  description: "Everything about your Pets"
-  externalDocs:
-    description: "Find out more"
-    url: "http://swagger.io"
-- name: "store"
-  description: "Access to Petstore orders"
-- name: "user"
-  description: "Operations about user"
-  externalDocs:
-    description: "Find out more about our store"
-    url: "http://swagger.io"
-schemes:
-- "https"
-- "http"
+  title: Document Extraction API
+  description: This is the swagger of the Datakeen's Document Extraction API.
+  version: 1.18.1
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/Datakeen18/DocumentExtraction/1.18.1
+  - url: https://api.datakeen.co/api/v1
+tags: []
 paths:
-  /pet/{petId}/uploadImage:
+  /reco/id:
     post:
-      tags:
-      - "pet"
-      summary: "uploads an image"
-      description: ""
-      operationId: "uploadFile"
-      consumes:
-      - "multipart/form-data"
-      produces:
-      - "application/json"
-      parameters:
-      - name: "petId"
-        in: "path"
-        description: "ID of pet to update"
+      summary: Information extraction from identity cards
+      description: |
+        This synchronous API processes and controls official French ID documents:
+          * National ID Cards (2003 or 2021 model)
+          * Biometric Passports
+          * Living Permits (2011 or 2021 model)
+          * Driver License (2013 model)
+
+        The API extract in real-time relevant information and control information.
+        Control information (depends on the type of identity card):
+          * Global Status - is the identity card a real valid card: true or false
+          * Are the initials are present on the photo
+          * Is the MRZ stripe conform regarding other extracted information
+          * Is the MRZ stripe valid regarding other extracted information
+          * Is the photo present
+          * Are holographic symbols present
+
+        User input controls (verify if the expected information matches the extractions):
+          * first name
+          * last name
+          * birth date
+          * gender
+          * photo: The photo must be in portrait format and the face must be visible and not covered.
+
+        Information extracted cover:
+          * Card holder's first name
+          * Card holder's last name
+          * Card holder's birth date
+          * Card holder's birth place
+          * Card holder's address
+          * Card delivery date
+          * Card expiry date
+          * Card Id Number
+          * Card MRZ 
+
+        The API accepts images or pdfs. Only one format is accepted at a time.
+        The API accepts the front and back on the same file or on two separate files (either 2 images or 2 pdf pages). A maximum of 2 pages is allowed.
+
+
+        For better results, it is highly recommended to provide documents under these properties:
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame 
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+
+        Please note the following rate limits are applied :
+          * Maximum file size: 5 MB.
+          * Maximum number of calls per minute: 10 calls.
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IDInput"
         required: true
-        type: "integer"
-        format: "int64"
-      - name: "additionalMetadata"
-        in: "formData"
-        description: "Additional data to pass to server"
-        required: false
-        type: "string"
-      - name: "file"
-        in: "formData"
-        description: "file to upload"
-        required: false
-        type: "file"
       responses:
         200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/ApiResponse"
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IDOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        481:
+          description: |
+            If no card was detected in the file a status 481 will be sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IDOutput481"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
       security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-  /pet:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/bankdetails:
     post:
-      tags:
-      - "pet"
-      summary: "Add a new pet to the store"
-      description: ""
-      operationId: "addPet"
-      consumes:
-      - "application/json"
-      - "application/xml"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Pet object that needs to be added to the store"
+      summary: Information extraction from bank details document (RIB)
+      description: |
+        Recognize Bank Details document from user file input and extract
+        relevant information:
+          * Account owner first and last name.
+          * Account owner address.
+          * Account owner owner address details.
+          * Bank BIC code.
+          * Account owner city.
+          * Account owner civility.
+          * Account IBAN number.
+          * Account owner city zipcode.
+          * Bank name.
+          * Bank country code.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        Input document(s) can be either black & White or colored.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankDetailsInput"
         required: true
-        schema:
-          $ref: "#/definitions/Pet"
-      responses:
-        405:
-          description: "Invalid input"
-      security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-    put:
-      tags:
-      - "pet"
-      summary: "Update an existing pet"
-      description: ""
-      operationId: "updatePet"
-      consumes:
-      - "application/json"
-      - "application/xml"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Pet object that needs to be added to the store"
-        required: true
-        schema:
-          $ref: "#/definitions/Pet"
-      responses:
-        400:
-          description: "Invalid ID supplied"
-        404:
-          description: "Pet not found"
-        405:
-          description: "Validation exception"
-      security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-  /pet/findByStatus:
-    get:
-      tags:
-      - "pet"
-      summary: "Finds Pets by status"
-      description: "Multiple status values can be provided with comma separated strings"
-      operationId: "findPetsByStatus"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "status"
-        in: "query"
-        description: "Status values that need to be considered for filter"
-        required: true
-        type: "array"
-        items:
-          type: "string"
-          enum:
-          - "available"
-          - "pending"
-          - "sold"
-          default: "available"
-        collectionFormat: "multi"
       responses:
         200:
-          description: "successful operation"
-          schema:
-            type: "array"
-            items:
-              $ref: "#/definitions/Pet"
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankDetailsOutput200"
         400:
-          description: "Invalid status value"
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
       security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-  /pet/findByTags:
-    get:
-      tags:
-      - "pet"
-      summary: "Finds Pets by tags"
-      description: "Multiple tags can be provided with comma separated strings. Use\
-        \ tag1, tag2, tag3 for testing."
-      operationId: "findPetsByTags"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "tags"
-        in: "query"
-        description: "Tags to filter by"
-        required: true
-        type: "array"
-        items:
-          type: "string"
-        collectionFormat: "multi"
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            type: "array"
-            items:
-              $ref: "#/definitions/Pet"
-        400:
-          description: "Invalid tag value"
-      security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-      deprecated: true
-  /pet/{petId}:
-    get:
-      tags:
-      - "pet"
-      summary: "Find pet by ID"
-      description: "Returns a single pet"
-      operationId: "getPetById"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "petId"
-        in: "path"
-        description: "ID of pet to return"
-        required: true
-        type: "integer"
-        format: "int64"
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/Pet"
-        400:
-          description: "Invalid ID supplied"
-        404:
-          description: "Pet not found"
-      security:
-      - api_key: []
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/cvec:
     post:
-      tags:
-      - "pet"
-      summary: "Updates a pet in the store with form data"
-      description: ""
-      operationId: "updatePetWithForm"
-      consumes:
-      - "application/x-www-form-urlencoded"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "petId"
-        in: "path"
-        description: "ID of pet that needs to be updated"
+      summary: Information extraction from CVEC documents
+      description: |
+        This synchronous API extract in real-time relevant information from CVEC document such as holder’s First
+        Name, Last Name, CVEC Attestation Number and INE Number.
+        The API model also performs verification checks in order to control
+        Document Validity and Data consistency.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CVECInput"
         required: true
-        type: "integer"
-        format: "int64"
-      - name: "name"
-        in: "formData"
-        description: "Updated name of the pet"
-        required: false
-        type: "string"
-      - name: "status"
-        in: "formData"
-        description: "Updated status of the pet"
-        required: false
-        type: "string"
       responses:
-        405:
-          description: "Invalid input"
-      security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-    delete:
-      tags:
-      - "pet"
-      summary: "Deletes a pet"
-      description: ""
-      operationId: "deletePet"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "api_key"
-        in: "header"
-        required: false
-        type: "string"
-      - name: "petId"
-        in: "path"
-        description: "Pet id to delete"
-        required: true
-        type: "integer"
-        format: "int64"
-      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CVECOutput200"
         400:
-          description: "Invalid ID supplied"
-        404:
-          description: "Pet not found"
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
       security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
-  /store/order:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/pay-slip:
     post:
-      tags:
-      - "store"
-      summary: "Place an order for a pet"
-      description: ""
-      operationId: "placeOrder"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "order placed for purchasing the pet"
+      summary: Information extraction from pay slips
+      description: |
+        This synchronous API extracts in real-time information from french pay slip:
+          * Employee name.
+          * Employee social security number.
+          * Employee address.
+          * Employing company.
+          * Employing company SIRET.
+          * Pay slip period.
+          * Net salary before taxes.
+          * Net salary to pay.
+          * Net cumulated taxable income.
+          * Payed leave days.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        Input document(s) can be either Black & White or colored.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaySlipInput"
         required: true
-        schema:
-          $ref: "#/definitions/Order"
       responses:
         200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/Order"
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaySlipOutput200"
         400:
-          description: "Invalid Order"
-  /store/order/{orderId}:
-    get:
-      tags:
-      - "store"
-      summary: "Find purchase order by ID"
-      description: "For valid response try integer IDs with value >= 1 and <= 10.\
-        \ Other values will generated exceptions"
-      operationId: "getOrderById"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "orderId"
-        in: "path"
-        description: "ID of pet that needs to be fetched"
-        required: true
-        type: "integer"
-        maximum: 10
-        minimum: 1
-        format: "int64"
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/Order"
-        400:
-          description: "Invalid ID supplied"
-        404:
-          description: "Order not found"
-    delete:
-      tags:
-      - "store"
-      summary: "Delete purchase order by ID"
-      description: "For valid response try integer IDs with positive integer value.\
-        \ Negative or non-integer values will generate API errors"
-      operationId: "deleteOrder"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "orderId"
-        in: "path"
-        description: "ID of the order that needs to be deleted"
-        required: true
-        type: "integer"
-        minimum: 1
-        format: "int64"
-      responses:
-        400:
-          description: "Invalid ID supplied"
-        404:
-          description: "Order not found"
-  /store/inventory:
-    get:
-      tags:
-      - "store"
-      summary: "Returns pet inventories by status"
-      description: "Returns a map of status codes to quantities"
-      operationId: "getInventory"
-      produces:
-      - "application/json"
-      parameters: []
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            type: "object"
-            additionalProperties:
-              type: "integer"
-              format: "int32"
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
       security:
-      - api_key: []
-  /user/createWithArray:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/tax-reference:
     post:
-      tags:
-      - "user"
-      summary: "Creates list of users with given input array"
-      description: ""
-      operationId: "createUsersWithArrayInput"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "List of user object"
+      summary: Information extraction from tax references
+      description: |
+        This synchronous API extracts in real-time information from french tax reference:
+
+          * Name of the taxpayer.
+          * Taxpayer fiscal number (numéro fiscal).
+          * Taxpayer fiscal reference (Référence de l'avis).
+          * Tax year.
+          * Taxpayer fiscal reference income (Revenu fiscal de référence).
+          * Taxpayer total salary over tax year.
+          * Taxable income.
+          * Number of shares.
+          * Secondary taxpayer name.
+          * Secondary taxpayer fiscal number.
+          * Secondary taxpayer total salary over tax year.
+
+        It also extracts control information on the fields above using the tax-reference 2ddoc :
+
+          * Conformity of the taxpayer fiscal number : Verify whether the extracted fiscal number adheres to the correct format.
+          * Conformity of the taxpayer fiscal reference : Verify whether the extracted fiscal reference adheres to the correct format.
+          * Conformity of the secondary taxpayer fiscal number (if it exists): Verify whether the extracted fiscal number adheres to the correct format.
+          * Checks if the taxpayer name match (between document and 2ddoc)
+          * Checks if the secondary taxpayer name match (between document and 2ddoc)
+          * Checks if the number of shares match (between document and 2ddoc)
+          * Checks if the taxpayer fiscal number match (between document and 2ddoc)
+          * Checks if the secondary taxpayer fiscal number (if it exists) match (between document and 2ddoc)
+          * Checks if the taxpayer fiscal reference income match (between document and 2ddoc)
+          * Checks if the taxpayer fiscal reference match (between document and 2ddoc)
+          * Checks if the tax year match (between document and 2ddoc)
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        Input document(s) can be either Black & White or colored.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxReferenceInput"
         required: true
-        schema:
-          type: "array"
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxReferenceOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/sirene:
+    post:
+      summary: Information extraction from INSEE SIRENE documents
+      description: |
+        This synchronous API extracts in real-time information from INSEE SIRENE documents.
+
+          * Company siren code.
+          * Company siret code.
+          * Company juridical type (Catégorie juridique).
+          * Company activity code.
+          * Company address.
+          * Document date of issue.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        Input document(s) can be either Black & White or colored.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SIRENEInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SIRENEOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/driver-license:
+    post:
+      summary: Information extraction from driver license (FR)
+      description: |
+        This synchronous API extracts in real-time information from French driver license document:
+
+          * Holder’s first name
+          * Holder’s last name
+          * Holder’s birth date
+          * Holder’s birth place
+          * License issue date
+          * License issue place
+          * License expiration date
+          * License number
+          * License categories
+          * MRZ (Machine Readable Zone)
+          * B license issue date (if existing)
+          * A license issue date (if existing)
+
+        It also extracts control information on the filed above using MRZ :
+
+          * Validity of the MRZ : does the MRZ respect document norm criteria
+          * Conformity of the MRZ : are extracted information from MRZ identical to extraced information from the document
+          * Checks if the last names match (between document and MRZ)
+          * Checks if the license numbers match (between document and MRZ)
+          * Checks if the expiry dates match (between document and MRZ)
+
+        The API works on all French licenses but works best on French licenses issued after September 2013.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverLicenseInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriverLicenseOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/vehicle-registration:
+    post:
+      summary: Information extraction from vehicle registration (FR)
+      description:
+        "This synchronous API extracts in real-time information from French\
+        \ vehicle registration documents (cartes grises):\n      \n  * C.1: holder’\
+        s last and first name\n  * C.4.1: co-owner last and first name. empty is there\
+        \ is co-owner\n  * A: car registration number\n  * B: car first registration\
+        \ date\n  * D.1: car brand\n  * D.2: car type\n  * D.2.1: national identification\
+        \ code of car type (CNIT)\n  * D.3: car model\n  * E: international vehicle\
+        \ number (VIN)\n  * I: document registration date\n  * P.6: car fiscal horsepower\n\
+        \  * MRZ (Machine Readable Zone)\n  * Car registration number extracted from\
+        \ the MRZ\n  * First registration date extracted from the MRZ\n  * Car brand\
+        \ extracted from the MRZ\n  * Car model extracted from the MRZ\n\nIt also\
+        \ extracts control information on the filed above using MRZ :\n\n  * Validity\
+        \ of the MRZ : does the MRZ respect document norm criteria\n  * Conformity\
+        \ of the MRZ : are extracted information from MRZ identical to extraced information\
+        \ from the document\n  * Checks if the car brands match (between document\
+        \ and MRZ)\n  * Checks if the car models numbers match (between document and\
+        \ MRZ)\n  * Checks if the first registration dates match (between document\
+        \ and MRZ)\n  * Checks if the car registration numbers match (between document\
+        \ and MRZ)\n\nMaximum file size: 5 MB.\nMaximum number of calls per minute:\
+        \ 10 calls.\n\nFor better results, it is highly recommended to provide documents\n\
+        under these properties :\n\n  * The image resolution should be greater than\
+        \ 200 DPI\n  * The document must not be blurred or rotated\n  * In case of\
+        \ photo document, make sure that the text area does\n    not contain any highlights\
+        \ or shadows\n\n<
+        o/wp-content/uploads/2023/01/document-conditions.png\"\
+        >\n"
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleRegistrationInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRegistrationOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/vital-card:
+    post:
+      summary: Information extraction for vital card (carte vitale).
+      description: |
+        This synchronous API extracts in real-time information from french vital card Document:
+          - Holder's last and first Name.
+          - Holder's social security number.
+          - The issue date of the card.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+          - The image resolution should be greater than 200 DPI
+          - The document must not be blurred or rotated
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VitalCardInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalCardOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/kbis:
+    post:
+      summary: Information extraction for Certificates of Incorporation (Kbis).
+      description: |
+        This synchronous API extracts in real-time information from French Certificates of Incorporation (Kbis):
+
+        The following information is extracted:
+
+        **Controls:**
+        - **Company Name Conformity:**
+          - Check that the company name is valid using InseeAPI and the RCS registration number.
+        - **Registration Date Conformity:**
+          - Check that the registration date is valid using InseeAPI and the RCS registration number.
+
+        **Extracted Information:**
+        - **RCS:**
+          - RCS registration number and city (Immatriculation au RCS, numéro).
+        - **Registration Date:**
+          - Registration date (Date d'immatriculation).
+        - **Company Address:**
+          - Company address (Adresse du siège).
+        - **Legal Form:**
+          - The legal form of the company (SARL, SA, etc.) (Forme juridique).
+        - **Capital:**
+          - Social capital (Capital social).
+        - **Activity:**
+          - Company main activity (Activités principales).
+        - **Transfer From:**
+          - Transferred from and date (Transfert du).
+        - **Original Registration Date:**
+          - Original registration date (Date d'immatriculation d'origine).
+        - **Duration:**
+          - Company duration (Durée de la personne morale).
+        - **Closing Date:**
+          - Closing date of the financial year (Date de clôture de l'exercice social).
+        - **First Closing Date:**
+          - Closing date of the first financial year (Date de clôture du 1er l'exercice social).
+        - **Code NAF:**
+          - NAF code (Nomenclature d'activités française (code NAF)).
+        - **Establishment Address:**
+          - Establishment address (Adresse de l'établissement).
+        - **Practiced Activities:**
+          - Activity(ies) carried out by the company (Activité(s) exercée(s)).
+        - **Activity Start Date:**
+          - Start date of activity (Date de commencement d'activité).
+        - **Code NAF Establishment:**
+          - NAF code of the establishment (Nomenclature d'activités française de l'établissement (code NAF)).
+        - **Commercial Name:**
+          - Commercial name (Nom commercial).
+        - **Origin of Funds or Activity:**
+          - Origin of the funds or the activity (Origine du fonds ou de l'activité).
+        - **Operating Mode:**
+          - Operating mode (Mode d'exploitation).
+        - **Date:**
+          - Date (Date).
+
+        **Members:**
+        - List of members.
+          - **Full Name:**
+            - First and last name (Nom, Prénom).
+          - **Birth Date:**
+            - Birth date (Date de naissance).
+          - **Birth Place:**
+            - Birth place (Lieu de naissance).
+          - **Citizenship:**
+            - Citizenship (Nationalité).
+          - **Personal Address:**
+            - Personal Address (Domicile personnel).
+          - **Usual Name:**
+            - Usual name (Nom d'usage).
+          - **Company Name:**
+            - Company name (Dénomination).
+          - **Company Address:**
+            - Company address (Address).
+          - **Legal Form:**
+            - Legal form (Forme juridique).
+          - **RCS:**
+            - RCS number (Immatriculation au RCS, numéro).
+
+        **Mentions:**
+        - List of mentions.
+          - **Date:**
+            - Mention's date (Date de la mention).
+          - **Mention:**
+            - Mention's text (le crops de la mention).
+
+        Moreover, a check is made to the INSEE database in order to verify if the company name and registration date.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+          - The image resolution should be greater than 200 DPI
+          - The document must not be blurred or rotated
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KbisInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KbisOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/death-certif:
+    post:
+      summary: Information extraction from death certificates
+      description: |
+        This synchronous API extracts in real-time information from french death certificates:
+          * Nom de la personne décédée.
+          * Date de décès.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+          - The image resolution should be greater than 200 DPI
+          - The document must not be blurred or rotated
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeathCertifInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertifOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/proof-of-address:
+    post:
+      summary: Information extraction from proof of address documents.
+      description: |
+        This synchronous API extracts in real-time information from proof of address.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+          - The image resolution should be greater than 200 DPI
+          - The document must not be blurred or rotated
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JDDInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JDDOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/language-proficiency-test:
+    post:
+      summary: Information extraction from language proficiency test documents.
+      description: |
+        This synchronous API extracts in real-time information from language proficiency tests. 
+        Four (4) types of language proficiency tests are currently supported:
+          - TOEIC: Toeic Score Report ETS >= 2022 
+          - TOEIC_2: Individual Performance Feedback - TOEIC Listening and Reading Test >= 2022
+          - TOEIC_3: ETS TOEIC Listening and Reading Official Score Certificate >= 2022 
+          - TOEFL: Toefl IBT Test Taker Score Report >= 2019
+          - IELTS: IELTS Test Report Form >= 2020
+
+        The extracted fields are as follows:
+          - TOEIC: fullName, birthDate, testDate, validUntil, clientInstitution, listening, listeningCefrLevel, reading, readingCefrLevel, total, totalCefrLevel 
+          - TOEIC_2: fullName, birthDate, testDate, validUntil, clientInstitution, listening, reading, totalScore 
+          - TOEIC_3: fullName, birthDate, testDate, validUntil, clientInstitution, listening, reading, totalScore 
+          - TOEFL: fullName, birthDate, testDate, testCenter, testCenterCountry, listening, reading, speaking, writing, totalScore 
+          - IELTS: lastName, firstName, birthDate, testDate, centerNumber, firstLanguage, listening, reading, speaking, writing, overallBandScore, cefrLevel 
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents under these properties:
+          - The image resolution should be greater than 200 DPI
+          - In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          - The document must not be blurred or rotated
+          - The document must be well oriented with an angle of 0° and clearly readable in the usual reading direction.
+          - For the TOEIC_2 type of document, the document should be in the landscape format in the usual reading direction.
+          
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LanguageProficiencyTestInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToeicOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/invoices:
+    post:
+      summary: Information extraction from invoices documents
+      description: |
+        This synchronous API extract in real-time relevant information from invoice document such as invoice's number, total amount, company address, vendor name and list of product lines.
+
+        Maximum file size: 5 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoicesInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoicesOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+  /reco/multi-doc:
+    post:
+      summary: Information extraction from a set of documents
+      description: |
+        This synchronous API extracts in real-time information from a set of documents.
+
+        Document types supported :
+
+          * Id cards (FR).
+          * Tax references (FR)
+          * Driver licences (FR).
+          * Proof of addresses (FR).
+          * Bank details (FR).
+          * Payslips (FR).
+          * KBIS (FR)
+          * Health card (FR)
+
+        Maximum file size: 15 MB.
+        Maximum number of calls per minute: 10 calls.
+
+        Input document(s) can be either black & white or colored.
+
+        For better results, it is highly recommended to provide documents
+        under these properties :
+
+          * The image resolution should be greater than 200 DPI
+          * The document must not be blurred or rotated
+          * In case of a photo document, make sure that the text area does not contain any highlights or shadows
+          * The entire document must be in the frame
+
+        <img width="75%" src="https://www.datakeen.co/wp-content/uploads/2023/01/document-conditions.png">
+      requestBody:
+        description: File.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MultidocInput"
+        required: true
+      responses:
+        200:
+          description: |
+            Successful operation. All relevant informations that
+            were found in the files.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultidocOutput200"
+        400:
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default400"
+        401:
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default401"
+        500:
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Default500"
+      security:
+        - access_token: []
+      x-codegen-request-body-name: json
+
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        value:
+          type: string
+        confidence:
+          type: number
+          description: float between 0 and 1.
+    Control:
+      type: object
+      properties:
+        value:
+          type: boolean
+        confidence:
+          type: number
+          description: float between 0 and 1.
+    File:
+      type: string
+      description: |
+        File encoded in base64. Multiple formats are accepted.
+        The correct prefix must be used for the different format:
+          - png: "data:image/png;base64,"
+          - jpg: "data:image/jpg;base64,"
+          - pdf: "data:pdf/pdf;base64,"
+    Files:
+      type: array
+      description: List of files to process.
+      items:
+        type: string
+        description: |
+          File encoded in base64. Multiple formats are accepted.
+          The correct prefix must be used for the different format:
+            - png: "data:image/png;base64,"
+            - jpg: "data:image/jpg;base64,"
+            - pdf: "data:pdf/pdf;base64,"
+    TestType:
+      type: string
+      description: |
+        Type of the test document. Multiple formats are accepted.
+        The correct type must be specified:
+          - TOEIC: 'toeic'
+          - TOEIC_2: 'toeic_2'
+          - TOEIC_3: 'toeic_3' 
+          - TOEFL: 'toefl'
+          - IELTS: 'ielts'
+    Default400:
+      type: object
+      example:
+        status: "400"
+        message: Bad Request
+        more_info: required argument file is missing
+    Default401:
+      type: object
+      example:
+        status: "401"
+        message: Authenticate
+        more_info: submitted token missing or expired
+    Default500:
+      type: object
+      example:
+        status: "500"
+        message: Internal Server Error
+        more_info: "Server error. If repeated please contact support : support@datakeen.co"
+    BankDetailsInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            cityExtractMethod:
+              type: string
+              description:
+                "'from_zipcode_db' --> extracts the city name by using
+                the postal code. 'from_text' --> extracts the city name from document
+                text. Defaults to 'from_zipcode_db' (currently gives best performance)"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name.
+                address:
+                  type: string
+                  description: Declared address.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    BankDetailsOutput200:
+      type: object
+      properties:
+        controls:
+          type: object
+          properties:
+            ibanConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Check that IBAN number is valid.
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if full name provided by user in `userInput` matches
+                    the full name extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchAddress:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if address provided by user in `userInput` matches
+                    the address extracted from the document.
+                - $ref: "#/components/schemas/Control"
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            fullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner full name (first and last name).
+            accountOwner:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner first and last name. ⚠️ This information is deprecated, please use `fullName`.
+            address:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner address
+            addressDetails:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner owner address details
+            bic:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Bank BIC code
+            city:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner city
+            civility:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner civility
+            iban:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account IBAN number
+            zipCode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Account owner city zipcode
+            bankName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Bank name
+            bankCountryCode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Bank country code
+    JDDInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name.
+                address:
+                  type: string
+                  description: Declared address.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    JDDOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            fullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: proof holder's full name.
+            address:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: proof holder's address.
+            ownerFullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: proof holder's full name. ⚠️ This information is deprecated, please use `ownerFullName`.
+            ownerAddress:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: proof holder's address. ⚠️ This information is deprecated, please use `ownerAddress`.
+            date:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: date of the document.
+            invoiceDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: date of the document.  ⚠️ This information is deprecated, please use `date`.
+            JDDAddress:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: residency address.
+            JDDName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: residency address owner full name.
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `fullName` provided by user in `userInput` matches
+                    the `fullName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchAddress:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `address` provided by user in `userInput` matches
+                    the `address` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+    CVECInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: Declared first name.
+                lastName:
+                  type: string
+                  description: Declared last name.
+                fullName:
+                  type: string
+                  description: Declared full name.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    CVECOutput200:
+      type: object
+      properties:
+        controls:
+          type: object
+          properties:
+            ineNumberValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: |
+                    Result of INE Number check : (https://fr.wikipedia.org/wiki/Numéro_BEA)
+            attestationNumberValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Result of Attestation Number check.
+            academicYearValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: "."
+            matchFirstName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `firstName` provided by user in `userInput` matches
+                    the `firstName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchLastName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `lastName` provided by user in `userInput` matches
+                    the `lastName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `fullName` provided by user in `userInput` matches
+                    the `fullName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            firstName:
+              $ref: "#/components/schemas/Item"
+            lastName:
+              $ref: "#/components/schemas/Item"
+            attestationNumber:
+              $ref: "#/components/schemas/Item"
+            ineNumber:
+              $ref: "#/components/schemas/Item"
+            academicYear:
+              $ref: "#/components/schemas/Item"
+    DeathCertifInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    DeathCertifOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            FullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Deceased full name.
+            deceasedFirstName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Deceased name. ⚠️ This information is deprecated, please use `fullName`.
+            dateOfDeath:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Date of death.
+        controls:
+          type: object
+          properties:
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if full name provided by user in `userInput` matches
+                    the full name extracted from the document.
+                - $ref: "#/components/schemas/Control"
+
+    IDInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: Declared first name
+                lastName:
+                  type: string
+                  description: Declared last name
+                birthDate:
+                  type: string
+                  description: Declared birth date (dd/mm/YYYY)
+                gender:
+                  type: string
+                  description: "'M' or 'F'"
+                photo:
+                  type: string
+                  description: Base 64 encoding of the persons photo.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    IDOutput481:
+      type: object
+      properties:
+        message:
+          allOf:
+            - type: object
+              description: Bad request. No identity card detected in file
+            - type: string
+        status:
+          allOf:
+            - type: object
+              description: "481"
+            - type: number
+    IDOutput200:
+      type: object
+      properties:
+        cardSide:
+          type: string
+          description: One of 'front', 'back' or 'front-back'
+        cardType:
+          type: string
+          description:
+            One of 'biometric_passport_fr', 'national_id_card_fr_2021',
+            'national_id_card_fr_2003', 'living_permit_fr_2011', 'living_permit_fr_2021', 'driver_license_fr_2013'.
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            firstName:
+              type: object
+              allOf:
+                - type: object
+                  description: Card holder's first name
+                - $ref: "#/components/schemas/Item"
+            lastName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's last name
+            fullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's full name
+            birthDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's birth date
+            birthPlace:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's birth place
+            gender:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "Card holder's gender : M or F"
+            idNumber:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's identity number
+            mrz:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card MRZ text
+            spouseName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's spouse name
+            address:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's address
+            deliveryDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card's delivery date
+            expiryDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card's expiry date
+            firstNameMRZ:
+              type: object
+              allOf:
+                - type: object
+                  description: Card holder's first name extracted from MRZ.
+                - $ref: "#/components/schemas/Item"
+            lastNameMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's last name extracted from MRZ.
+            birthDateMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's birth date extracted from MRZ.
+            idNumberMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card holder's identity number extracted from MRZ.
+            countryCode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: ISO 3166-1 alpha-2 country code
+        controls:
+          type: object
+          properties:
+            mrzValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: |
+                    Result of INE Number check : (https://fr.wikipedia.org/wiki/Numéro_BEA).
+            globalStatus:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Is the card detected as a real and valid card or not.
+            mrzConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Result of Attestation Number check.
+            dateValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Verifies the validity of the expiryDate.
+            dateValidityDelivery:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Verifies the validity of the expiryDate. ⚠️ This information is deprecated, we be romoved in future updates.
+            dateConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Verifies the coherence between the delivery and expiry dates.
+            photoIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Verifies the presence of the photo on the card.
+            backgroundPhotoIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the background black and white
+                    photo on the card.
+            rfSymbolIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the 'RF' Symbol on the card.
+                    Verified only for national id card.
+            stampIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the stamp on the back of the
+                    card.
+            chipIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the chip on the card. Verified
+                    only for residency permits.
+            hologramIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the holograms on the card. For
+                    passports, the sun hologram is verified. For residency permits,
+                    both holograms need to be present.
+            waveIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the wave lines on the card.
+                    Verified only for national id card.
+            initialsIsPresent:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Verifies the presence of the person's initials on the
+                    photo. Verified only for national id card.
+            matchFirstName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `firstName` provided by user in `userInput` matches
+                    the `firstName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchLastName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `lastName` provided by user in `userInput` matches
+                    the `lastName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchBirthDate:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `birthDate` provided by user in `userInput` matches
+                    the `birthDate` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchGender:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if person `gender` provided by user in `userInput` matches
+                    the person on the document.
+                - $ref: "#/components/schemas/Control"
+            matchPhoto:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if person `photo` provided by user in `userInput` matches
+                    the person on the document.
+                - $ref: "#/components/schemas/Control"
+    PaySlipInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared name (first and last name).
+                  default: ""
+                address:
+                  type: string
+                  description: Declared address.
+                  default: ""
+                rentAddress:
+                  type: string
+                  description: Declared rent address of the employee.
+                  default: ""
+              description:
+                Declarative information collected through a form to be
+                cross-checked with document information.
+            inseeAPI:
+              type: boolean
+              description: Return Insee API information in the API output, based on extracted siret number.
+              default: false
+          required: ["file"]
+          description: Parameters for the request.
+    PaySlipOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            fullname:
+              type: object
+              allOf:
+                - type: object
+                  description: Employee full name
+                - $ref: "#/components/schemas/Item"
+            name:
+              type: object
+              allOf:
+                - type: object
+                  description: Employee name.  ⚠️ This information is deprecated, please use `fullName`.
+                - $ref: "#/components/schemas/Item"
+            period:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Pay slip period
+            nSS:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Employee social security number
+            address:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Employee address
+            companyName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Employing company name
+            companyAddress:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Employing company address
+            siret:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Employing company SIRET
+            apeCode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Employing company ape code.
+            netBeforeTax:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Net salary before taxes
+            netToPay:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Net salary to pay
+            netCumulTaxInc:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Net cumulated taxable income
+            taxableNetIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxable net income
+            CP:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Payed leave days
+            joiningDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Entry date to the company
+            sector:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company sector (private or public).
+        controls:
+          type: object
+          properties:
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `fullName` provided by user in `userInput` matches
+                    the `fullName` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            matchAddress:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if `address` provided by user in `userInput` matches
+                    the `address` extracted from the document.
+                - $ref: "#/components/schemas/Control"
+            rentLocationLessThan100KM:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the rent address provided by the user in `userInput` is less than 100
+                    kilometers from the company's address.
+                - $ref: "#/components/schemas/Control"
+            nSSConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the social security number extracted from the document is valid: starts with 1 or 2 and has 13 or 15 numbers.
+                - $ref: "#/components/schemas/Control"
+            SSCeilingConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the social security ceiling extracted from the document is less than the designated amount for the year.
+                - $ref: "#/components/schemas/Control"
+            periodConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the month and year of the pay slip respect the creation date of the company (based on Insee API).
+                - $ref: "#/components/schemas/Control"
+            companyNameConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the company name extracted from the document matches the company name found in Insee API.
+                - $ref: "#/components/schemas/Control"
+            companyAddressConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the company address extracted from the document matches the company address found in Insee API.
+                - $ref: "#/components/schemas/Control"
+            apeCodeConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the company APE code extracted from the document matches the company APE code found in Insee API.
+                - $ref: "#/components/schemas/Control"
+            siretConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the company SIRET extracted from the document is registered in Insee API.
+                - $ref: "#/components/schemas/Control"
+            paymentVariance:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the keywords: acompte, saisie, retenue E / P, arrêt maladie, are present in the document.
+                - $ref: "#/components/schemas/Control"
+            joiningDateConformity:
+              type: object
+              allOf:
+                - type: object
+                  description: |
+                    True if the joining date extracted from the document is after the creation date of the company.
+                - $ref: "#/components/schemas/Control"
+        inseeResults:
+          type: object
+          description: |
+            Insee API results based on extracted siret number.
+            (Only returned if input argument inseeAPI is set to 'true')
+    TaxReferenceInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name.
+                address:
+                  type: string
+                  description: Declared address.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    TaxReferenceOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            name:
+              type: object
+              allOf:
+                - type: object
+                  description: Taxpayer name
+                - $ref: "#/components/schemas/Item"
+            taxNumber:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer fiscal number (numéro fiscal)
+            taxReference:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer fiscal reference (Référence de l'avis)
+            taxYear:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Tax year
+            taxRefIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer fiscal reference income (Revenu fiscal de référence)
+            salary:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer salary over tax year
+            deduction:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer deduction 10% over tax year
+            BNCPro:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer BNCPro over tax year
+            reduction:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer reduction over tax year
+            reductionSpe:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer salary over tax year
+            BNCProNet:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer BNCProNet over tax year
+            minimalDeduction:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer minimal deduction over tax year
+            retirementPension:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer retirement pension over tax year
+            invalidityPension:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer invalidity pension over tax year
+            declaredRentalIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer declared rental income over tax year
+            netRentalIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer net rental income over tax year
+            SalaryAndPension:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer salary and pension total over tax year
+            propertyIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer property income over tax year
+            taxableIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Taxpayer taxable income
+            nbShare:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Number of shares
+            name2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary taxpayer name
+            taxNumber2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary taxpayer fiscal number
+            totalSalary2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary taxpayer total salary over tax year
+            salary2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer salary over tax year
+            deduction2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer deduction 10% over tax year
+            BNCPro2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer BNCPro over tax year
+            reduction2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer reduction over tax year
+            reductionSpe2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer salary over tax year
+            BNCProNet2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer BNCProNet over tax year
+            minimalDeduction2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer minimal deduction over tax year
+            retirementPension2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer retirement pension over tax year
+            invalidityPension2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer invalidity pension over tax year
+            declaredRentalIncome2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer declared rental income over tax year
+            netRentalIncome2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer net rental income over tax year
+            SalaryAndPension2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    Secondary Taxpayer salary and pension total over tax
+                    year
+            propertyIncome2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Secondary Taxpayer property income over tax year
+        controls:
+          type: object
+          properties:
+            taxNumberConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: first declarant tax number conformity.
+            taxNumber2Conformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: second declarant tax number conformity.
+            taxReferenceConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: tax reference conformity.
+            match2DDocTaxRefIncome:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: tax reference income conformity with 2DDoc.
+            match2DDocNbShare:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: number of shares conformity with 2DDoc.
+            match2DDocTaxReference:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: tax reference conformity with 2DDoc.
+            match2DDocTaxYear:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: tax year conformity with 2DDoc.
+            match2DDocTaxNumber:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: first declarant tax number conformity with 2DDoc.
+            match2DDocTaxNumber2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: second declarant tax number conformity with 2DDoc.
+            match2DDocName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: first declarant name conformity with 2DDoc.
+            match2DDocName2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: second declarant name conformity with 2DDoc.
+            matchUserInputName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if first declant name provided by user in `userInput` matches
+                    the first declant name extracted from the document.
+            matchUserInputName2:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if second declant name provided by user in `userInput` matches
+                    the second declant name extracted from the document.
+
+    SIRENEInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+          description: Parameters for the request.
+    SIRENEOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            siren:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company siren code
+            siret:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company siret code
+            entityType:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company juridical type (Catégorie juridique)
+            apeCode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company activity code
+            address:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company address
+            date:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Document date of issue
+    DriverLicenseInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+          description: Parameters for the request.
+    DriverLicenseOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            firstName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s first name.
+            lastName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s last name.
+            birthDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s birth date.
+            birthPlace:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s birth place.
+            issueDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: License issue date.
+            issuePlace:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: License issue place.
+            expiryDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: License expiration date.
+            licenseNumber:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: License number.
+            licenseCategories:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: License categories
+            mrz:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: MRZ strip
+            AlicenseIssueDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: A license issue date if existing else left empty
+            BlicenseIssueDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: B license issue date if existing else left empty
+            lastNameMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Last name extracted from MRZ band
+            licenseNumberMrz:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: License number extracted from MRZ band
+            expiryDateMrz:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Expiry date extracted from MRZ band
+        controls:
+          type: object
+          properties:
+            mrzValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Validity of the MRZ band (MRZ criteria respected)
+            mrzConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Conformity of the MRZ band (values match)
+            matchName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if last name extracted from MRZ band match the one
+                    extracted from the document
+            matchLicense:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if license number extracted from MRZ band match
+                    the one extracted from the document
+            matchExpiry:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if expiry date extracted from MRZ band match the
+                    one extracted from the document
+    VehicleRegistrationInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    VehicleRegistrationOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            fullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "C.1: Holder’s full name"
+            fullNameCoOwner:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "C.4.1: Co-owner full name. Empty if there
+                    is no co-owner"
+            carRegistrationNumber:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "A: Car registration number"
+            firstRegistrationDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "B: Car first registration date"
+            carBrand:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "D.1: Car brand"
+            carType:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "D.2: Car type"
+            typeNationalIdentificationCode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "D.2.1: Car national identification type (CNIT)"
+            carModel:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "D.3: Car model"
+            vin:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "E: Car international vehicle number (VIN)"
+            documentRegistrationDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "I: Document registration date"
+            taxHorsepower:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: "P.6: Car fiscal horsepower"
+            mrz:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: MRZ band
+            carModelMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Car model extracted from MRZ band
+            carBrandMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Car brand extracted from MRZ band
+            firstRegistrationDateMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: First registration date extracted from MRZ band
+            carRegistrationNumberMRZ:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Car registration number extracted from MRZ band
+        controls:
+          type: object
+          properties:
+            mrzValidity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: MRZ validity
+            mrzConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: MRZ conformity
+            matchCarRegistrationNumber:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if car registration number extracted from MRZ band
+                    match the one extracted from the document
+            matchFirstRegistrationDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if first registration date extracted from MRZ band
+                    match the one extracted from the document
+            matchCarBrand:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if car brand extracted from MRZ band match the one
+                    extracted from the document
+            matchCarModel:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description:
+                    True if car model extracted from MRZ band match the one
+                    extracted from the document
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if full name provided by user in `userInput` matches
+                    the full name extracted from the document.
+                - $ref: "#/components/schemas/Control"
+
+    VitalCardInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    VitalCardOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            firstName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s first name
+            lastName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s last name
+            issueDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Card issue date
+            nSS:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder's social security number
+        controls:
+          type: object
+          properties:
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if full name provided by user in `userInput` matches
+                    the full name extracted from the document.
+                - $ref: "#/components/schemas/Control"
+    LanguageProficiencyTestInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            testType:
+              $ref: "#/components/schemas/TestType"
+            userInput:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  description: Declared full name.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    ToeicOutput200:
+      type: object
+      properties:
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            fullName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s full name.
+            name:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s name. ⚠️ This information is deprecated, please use `fullName`.
+            birthdate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s date of birth.
+            dateOfBirth:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Holder’s date of birth. ⚠️ This information is deprecated, please use `birthDate`.
+            testDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Date of test
+            validUntil:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Test validity date
+            clientInstitution:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Client/Institution
+            listening:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Listening score
+            listeningCefrLevel:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Listening score CEFR level
+            reading:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Reading score
+            readingCefrLevel:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Reading score CEFR level
+            total:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Total score
+            totalCefrLevel:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Total score CEFR level
+        controls:
+          type: object
+          properties:
+            matchFullName:
+              type: object
+              allOf:
+                - type: object
+                  description:
+                    True if full name provided by user in `userInput` matches
+                    the full name extracted from the document.
+                - $ref: "#/components/schemas/Control"
+
+    KbisInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+            files:
+              $ref: "#/components/schemas/Files"
+            inseeAPI:
+              type: boolean
+              description: Return Insee API information in the API output, based on extracted siret number.
+              default: false
+          required: ["file"]
+          description: Parameters for the request.
+    KbisOutput200:
+      type: object
+      properties:
+        controls:
+          type: object
+          properties:
+            companyNameConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description: Check that the company name is valid using InseeAPI and the RCS registration number.
+            registrationDateConformity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    Check that the registration date is valid using InseeAPI
+                    and the RCS registration number.
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+              description: List of entities present in the document
+        extractedInformation:
+          type: object
+          properties:
+            rcs:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: RCS registration number and city (Immatriculation au RCS, numéro).
+            registrationDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Registration date (Date d'immatriculation).
+            companyAddress:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company address (Adresse du siège).
+            legalForm:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: The legal form fo the company (SARL, SA, etc.) (Forme juridique).
+            capital:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Social capital (Capital social).
+            activity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company main activity (Activités principales).
+            transferFrom:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: transfered from and date (Transfert du).
+            originalRegistrationDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Original registration date (Date d'immatriculation d'origine).
+            duration:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Company duration (Durée de la personne morale).
+            closingDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Closing date of the financial year (Date de clôture de l'exercice social).
+            firstClosingDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Closing date of the first financial year (Date de clôture du 1er l'exercice social).
+            codeNaf:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: NAF code (Nomenclature d'activités française (code NAF)).
+            establishmentAddress:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Establishment address (Adresse de l'établissement).
+            practicedActivities:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: activity(ies) carried out by the company (Activité(s) exercée(s)).
+            activityStartDate:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Start date of activity (Date de commencement d'activité).
+            codeNafEstablishment:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: NAF code of the establiment (Nomenclature d'activités française de l'établissement (code NAF)).
+            commercialName:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Commercial name (Nom commercial).
+            originFundsOrActivity:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Origin of the funds or the activity (Origine du fonds ou de l'activité).
+            operatingMode:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Operating mode (Mode d'exploitation).
+            date:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Item"
+                - type: object
+                  description: Date (Date).
+            members:
+              type: array
+              description: list of members.
+              items:
+                type: object
+                properties:
+                  fullName:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: First and last name (Nom, Prénom).
+                  birthDate:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Birth date (Date de naissance).
+                  birthPlace:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Birth place (Lieu de naissance).
+                  citizenship:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Citizenship (Nationalité).
+                  personalAddress:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Personal Address (Domicile personnel).
+                  usualName:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Usual name (Nom d'usage).
+                  companyName:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Company name (Dénomination).
+                  companyAddress:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Company address (Address).
+                  legalForm:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Legal form (Forme juridique).
+                  rcs:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: RCS number (Immatriculation au RCS, numéro).
+            mentions:
+              type: array
+              description: list of members.
+              items:
+                type: object
+                properties:
+                  date:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Mention's date (Date de la mention).
+                  mention:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: Mention's text (le crops de la mention).
+    InvoicesInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            file:
+              $ref: "#/components/schemas/File"
+          description: Parameters for the request.
+    InvoicesOutput200:
+      type: object
+      properties:
+        extractedInformation:
+          type: object
+          properties:
+            companyAddress:
+              $ref: "#/components/schemas/Item"
+            invoiceNumber:
+              $ref: "#/components/schemas/Item"
+            vendorName:
+              $ref: "#/components/schemas/Item"
+            subTotal:
+              $ref: "#/components/schemas/Item"
+            product_lines:
+              type: array
+              description: list of product lines.
+              items:
+                type: object
+                properties:
+                  product_code:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: code of the product.
+                  item:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: name of the product.
+                  unit_price:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: product unit price.
+                  quantity:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: quantity of the products.
+                  price:
+                    type: object
+                    allOf:
+                      - $ref: "#/components/schemas/Item"
+                      - type: object
+                        description: total price of all the products.
+
+    Entities:
+      type: array
+      items:
+        type: object
+        properties:
+          fullName:
+            type: string
+            description: entity full name
+          firstName:
+            type: string
+            description: entity first name
+          lastName:
+            type: string
+            description: entity last name
+          id:
+            type: string
+            description: entity unique indentifier
+    MultidocResults:
+      type: object
+      description: Extraction and controls results.
+      properties:
+        controls:
+          type: object
+          properties:
+            matchNameInAllDocuments:
+              type: object
+              allOf:
+                - $ref: "#/components/schemas/Control"
+                - type: object
+                  description:
+                    True if name provided by user in `userInput` matches
+                    the name extracted from the all documents.
+          description: Cross document controls
+        documents:
+          type: array
+          description: List of documents recognized in the set of files  and their respective information.
           items:
-            $ref: "#/definitions/User"
-      responses:
-        default:
-          description: "successful operation"
-  /user/createWithList:
-    post:
-      tags:
-      - "user"
-      summary: "Creates list of users with given input array"
-      description: ""
-      operationId: "createUsersWithListInput"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "List of user object"
-        required: true
-        schema:
-          type: "array"
-          items:
-            $ref: "#/definitions/User"
-      responses:
-        default:
-          description: "successful operation"
-  /user/{username}:
-    get:
-      tags:
-      - "user"
-      summary: "Get user by user name"
-      description: ""
-      operationId: "getUserByName"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "username"
-        in: "path"
-        description: "The name that needs to be fetched. Use user1 for testing. "
-        required: true
-        type: "string"
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/User"
-        400:
-          description: "Invalid username supplied"
-        404:
-          description: "User not found"
-    put:
-      tags:
-      - "user"
-      summary: "Updated user"
-      description: "This can only be done by the logged in user."
-      operationId: "updateUser"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "username"
-        in: "path"
-        description: "name that need to be updated"
-        required: true
-        type: "string"
-      - in: "body"
-        name: "body"
-        description: "Updated user object"
-        required: true
-        schema:
-          $ref: "#/definitions/User"
-      responses:
-        400:
-          description: "Invalid user supplied"
-        404:
-          description: "User not found"
-    delete:
-      tags:
-      - "user"
-      summary: "Delete user"
-      description: "This can only be done by the logged in user."
-      operationId: "deleteUser"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "username"
-        in: "path"
-        description: "The name that needs to be deleted"
-        required: true
-        type: "string"
-      responses:
-        400:
-          description: "Invalid username supplied"
-        404:
-          description: "User not found"
-  /user/login:
-    get:
-      tags:
-      - "user"
-      summary: "Logs user into the system"
-      description: ""
-      operationId: "loginUser"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - name: "username"
-        in: "query"
-        description: "The user name for login"
-        required: true
-        type: "string"
-      - name: "password"
-        in: "query"
-        description: "The password for login in clear text"
-        required: true
-        type: "string"
-      responses:
-        200:
-          description: "successful operation"
-          headers:
-            X-Expires-After:
-              type: "string"
-              format: "date-time"
-              description: "date in UTC when token expires"
-            X-Rate-Limit:
-              type: "integer"
-              format: "int32"
-              description: "calls per hour allowed by the user"
-          schema:
-            type: "string"
-        400:
-          description: "Invalid username/password supplied"
-  /user/logout:
-    get:
-      tags:
-      - "user"
-      summary: "Logs out current logged in user session"
-      description: ""
-      operationId: "logoutUser"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters: []
-      responses:
-        default:
-          description: "successful operation"
-  /user:
-    post:
-      tags:
-      - "user"
-      summary: "Create user"
-      description: "This can only be done by the logged in user."
-      operationId: "createUser"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      - "application/xml"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Created user object"
-        required: true
-        schema:
-          $ref: "#/definitions/User"
-      responses:
-        default:
-          description: "successful operation"
-securityDefinitions:
-  api_key:
-    type: "apiKey"
-    name: "api_key"
-    in: "header"
-  petstore_auth:
-    type: "oauth2"
-    authorizationUrl: "https://petstore.swagger.io/oauth/authorize"
-    flow: "implicit"
-    scopes:
-      read:pets: "read your pets"
-      write:pets: "modify pets in your account"
-definitions:
-  ApiResponse:
-    type: "object"
-    properties:
-      code:
-        type: "integer"
-        format: "int32"
-      type:
-        type: "string"
-      message:
-        type: "string"
-  Category:
-    type: "object"
-    properties:
-      id:
-        type: "integer"
-        format: "int64"
-      name:
-        type: "string"
-    xml:
-      name: "Category"
-  Pet:
-    type: "object"
-    required:
-    - "name"
-    - "photoUrls"
-    properties:
-      id:
-        type: "integer"
-        format: "int64"
-      category:
-        $ref: "#/definitions/Category"
-      name:
-        type: "string"
-        example: "doggie"
-      photoUrls:
-        type: "array"
-        xml:
-          wrapped: true
-        items:
-          type: "string"
-          xml:
-            name: "photoUrl"
-      tags:
-        type: "array"
-        xml:
-          wrapped: true
-        items:
-          xml:
-            name: "tag"
-          $ref: "#/definitions/Tag"
-      status:
-        type: "string"
-        description: "pet status in the store"
-        enum:
-        - "available"
-        - "pending"
-        - "sold"
-    xml:
-      name: "Pet"
-  Tag:
-    type: "object"
-    properties:
-      id:
-        type: "integer"
-        format: "int64"
-      name:
-        type: "string"
-    xml:
-      name: "Tag"
-  Order:
-    type: "object"
-    properties:
-      id:
-        type: "integer"
-        format: "int64"
-      petId:
-        type: "integer"
-        format: "int64"
-      quantity:
-        type: "integer"
-        format: "int32"
-      shipDate:
-        type: "string"
-        format: "date-time"
-      status:
-        type: "string"
-        description: "Order Status"
-        enum:
-        - "placed"
-        - "approved"
-        - "delivered"
-      complete:
-        type: "boolean"
-    xml:
-      name: "Order"
-  User:
-    type: "object"
-    properties:
-      id:
-        type: "integer"
-        format: "int64"
-      username:
-        type: "string"
-      firstName:
-        type: "string"
-      lastName:
-        type: "string"
-      email:
-        type: "string"
-      password:
-        type: "string"
-      phone:
-        type: "string"
-      userStatus:
-        type: "integer"
-        format: "int32"
-        description: "User Status"
-    xml:
-      name: "User"
-externalDocs:
-  description: "Find out more about Swagger"
-  url: "http://swagger.io"
+            type: object
+            properties:
+              origin:
+                type: string
+                description: original file name of the documents.
+              type:
+                type: string
+                description: document type.
+              pages:
+                type: array
+                description: list of pages of the document.
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                      description: original file name of the page.
+                    type:
+                      type: string
+                      description: sub document type of the page.
+                    num:
+                      type: string
+                      description: page number within the original file.
+              entities:
+                type: array
+                description: list of entity ids found in this document.
+                items:
+                  type: string
+                  description: entity id.
+              extractedInformation:
+                type: object
+                description: Extracted information from the document (based on the document type). Refer to the rest of our documentation collection for full details.
+              controls:
+                type: object
+                description: controls verified on the document (based on the document type). Refer to the rest of our documentation collection for full details.
+
+        entities:
+          allOf:
+            - $ref: "#/components/schemas/Entities"
+            - description: List of entities found in the documents.
+    MultidocInput:
+      type: object
+      properties:
+        paramDict:
+          type: object
+          properties:
+            files:
+              $ref: "#/components/schemas/Files"
+            userInput:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: Declared first name.
+                lastName:
+                  type: string
+                  description: Declared last name.
+                address:
+                  type: string
+                  description: Declared address.
+              description:
+                Declarative information collected through a form to be
+                cross-checked with Id card information.
+          description: Parameters for the request.
+    MultidocOutput200:
+      type: object
+      properties:
+        status:
+          allOf:
+            - type: integer
+            - type: object
+              description: Multidoc status code
+        results:
+          $ref: "#/components/schemas/MultidocResults"
+  securitySchemes:
+    access_token:
+      type: apiKey
+      description: 'Enter the token with the `Bearer: ` prefix, e.g. "Bearer abcde12345".'
+      name: Authorization
+      in: header
